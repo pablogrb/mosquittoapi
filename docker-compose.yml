@@ -1,0 +1,22 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_config:/mosquitto/config
+  api:
+    build: .
+    depends_on:
+      - mosquitto
+    environment:
+      - MQTT_BROKER_HOST=mosquitto
+      - MQTT_BROKER_PORT=1883
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+volumes:
+  mosquitto_data:
+  mosquitto_config:
