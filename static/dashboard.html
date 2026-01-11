@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT $SYS Stats Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,500&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@material/web@1.0.0/dist/material-web.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@material/web@1.0.0/dist/material-web.min.js"></script>
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 40px;
+            background: #fff;
+            color: #222;
+            transition: background 0.2s, color 0.2s;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2em;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+        }
+        .header-title h1 {
+            margin: 0;
+            font-weight: 500;
+            font-size: 2rem;
+            letter-spacing: 0.01em;
+        }
+        .mdc-button {
+            background: #1976d2;
+            color: #fff;
+            border-radius: 4px;
+            padding: 0.5em 1.2em;
+            font-size: 1em;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            transition: background 0.2s;
+        }
+        .mdc-button:hover {
+            background: #1565c0;
+        }
+        body.dark-mode {
+            background: #181a20;
+            color: #eee;
+        }
+        body.dark-mode h1, body.dark-mode label {
+            color: #fff;
+        }
+        body.dark-mode #mode-switch {
+            background: #222;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-title">
+            <img src="/static/favicon.svg" alt="favicon" style="width:32px;height:32px;margin-right:12px;vertical-align:middle;">
+            <h1>MQTT Stats Dashboard</h1>
+        </div>
+        <div style="display:flex;align-items:center;gap:1em;">
+            <label for="range-switch" style="font-size:1em;">Time Range:</label>
+            <select id="range-switch" class="mdc-button" style="padding:0.3em 1em;font-size:1em;background:#222;color:#fff;border:none;border-radius:4px;">
+                <option value="60">Last Hour</option>
+                <option value="15">Last 15 min</option>
+                <option value="5">Last 5 min</option>
+            </select>
+            <button id="mode-switch" class="mdc-button">🌙 Dark Mode</button>
+        </div>
+    </header>
+    <div id="dashboard-sections" style="width: 100vw; max-width: 1200px; margin: 2em auto;">
+        <h2 style="font-size: 1.2rem; font-weight: 500;">Clients Overview</h2>
+        <div style="display: flex; gap: 1em; flex-wrap: wrap; justify-content: space-between;">
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Total Clients</span>
+                <canvas id="clientsTotalBar" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Connected Clients</span>
+                <canvas id="clientsConnectedBar" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Active Clients</span>
+                <canvas id="clientsActiveBar" style="width:100%; height:100%;"></canvas>
+            </div>
+        </div>
+        <h2 style="font-size: 1.2rem; font-weight: 500; margin-top:2em;">Messages Overview</h2>
+        <div style="display: flex; gap: 1em; flex-wrap: wrap; justify-content: space-between;">
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Messages Sent</span>
+                <canvas id="messagesSentBar" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Messages Received</span>
+                <canvas id="messagesReceivedBar" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Messages Dropped</span>
+                <canvas id="messagesDroppedBar" style="width:100%; height:100%;"></canvas>
+            </div>
+        </div>
+        <h2 style="font-size: 1.2rem; font-weight: 500; margin-top:2em;">Bytes Overview</h2>
+        <div style="display: flex; gap: 1em; flex-wrap: wrap; justify-content: space-between;">
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Bytes Sent</span>
+                <canvas id="bytesSentBar" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px;">Bytes Received</span>
+                <canvas id="bytesReceivedBar" style="width:100%; height:100%;"></canvas>
+            </div>
+            <div style="flex: 1 1 350px; min-width:180px; max-width:400px; height:350px; display:flex; flex-direction:column; align-items:center;">
+                <span style="font-size:0.95em; font-weight:500; margin-bottom:4px; visibility:hidden;">Dummy</span>
+                <canvas id="bytesDummyBar" style="width:100%; height:100%; visibility:hidden;"></canvas>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script>
+        function getSharedOptions(yMax) {
+            // Detect dark mode
+            const isDark = document.body.classList.contains('dark-mode');
+            const gridColor = isDark ? '#404040' : 'rgba(0,0,0,0.1)';
+            return {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: { unit: 'minute', tooltipFormat: 'HH:mm:ss' },
+                        title: { display: false },
+                        min: Date.now() - 60 * 60 * 1000,
+                        max: Date.now(),
+                        grid: { color: gridColor }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: { display: false },
+                        suggestedMax: yMax,
+                        grid: { color: gridColor }
+                    }
+                }
+            };
+        }
+        // Dark mode switch
+        window.onload = () => {
+                        // Time range state
+                        let timeRangeMinutes = 60;
+                        const rangeSwitch = document.getElementById('range-switch');
+                        rangeSwitch.addEventListener('change', (e) => {
+                            timeRangeMinutes = parseInt(e.target.value);
+                            updateCharts(); // Force plot redraw
+                        });
+            const modeSwitch = document.getElementById('mode-switch');
+            document.body.classList.add('dark-mode');
+            modeSwitch.textContent = '☀️ Light Mode';
+            modeSwitch.addEventListener('click', () => {
+                const dark = document.body.classList.toggle('dark-mode');
+                modeSwitch.textContent = dark ? '☀️ Light Mode' : '🌙 Dark Mode';
+                // Update grid color for all charts on mode switch
+                [clientsTotalChart, clientsConnectedChart, clientsActiveChart,
+                 messagesSentChart, messagesReceivedChart, messagesDroppedChart,
+                 bytesSentChart, bytesReceivedChart].forEach(chart => {
+                    const yMax = chart.options.scales.y.suggestedMax;
+                    chart.options = getSharedOptions(yMax);
+                    chart.update();
+                });
+            });
+            // Chart setup
+            const apiBase = '/sys';
+            // Timeseries data arrays
+            const maxPoints = 30;
+            const clientsTotalSeries = [], clientsConnectedSeries = [], clientsActiveSeries = [];
+            const messagesSentSeries = [], messagesReceivedSeries = [], messagesDroppedSeries = [];
+            const bytesSentSeries = [], bytesReceivedSeries = [];
+            let lastMessages = { sent: null, received: null, dropped: null };
+            let lastBytes = { sent: null, received: null };
+            // Initialize yMax values
+            let clientsYMax = 10;
+            let messagesYMax = 10;
+            let bytesYMax = 10;
+            // Clients
+            const clientsTotalChart = new Chart(document.getElementById('clientsTotalBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Total Clients', data: [], borderColor: '#1976d2', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(clientsYMax)
+            });
+            const clientsConnectedChart = new Chart(document.getElementById('clientsConnectedBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Connected Clients', data: [], borderColor: '#43a047', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(clientsYMax)
+            });
+            const clientsActiveChart = new Chart(document.getElementById('clientsActiveBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Active Clients', data: [], borderColor: '#fbc02d', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(clientsYMax)
+            });
+            // Messages
+            const messagesSentChart = new Chart(document.getElementById('messagesSentBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Messages Sent', data: [], borderColor: '#0288d1', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(messagesYMax)
+            });
+            const messagesReceivedChart = new Chart(document.getElementById('messagesReceivedBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Messages Received', data: [], borderColor: '#388e3c', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(messagesYMax)
+            });
+            const messagesDroppedChart = new Chart(document.getElementById('messagesDroppedBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Messages Dropped', data: [], borderColor: '#d32f2f', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(messagesYMax)
+            });
+            // Bytes
+            const bytesSentChart = new Chart(document.getElementById('bytesSentBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Bytes Sent', data: [], borderColor: '#7b1fa2', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(bytesYMax)
+            });
+            const bytesReceivedChart = new Chart(document.getElementById('bytesReceivedBar').getContext('2d'), {
+                type: 'line',
+                data: { datasets: [{ label: 'Bytes Received', data: [], borderColor: '#c2185b', fill: false, pointRadius: 0 }] },
+                options: getSharedOptions(bytesYMax)
+            });
+            // Update charts
+            async function updateCharts() {
+                const res = await fetch(apiBase);
+                const data = await res.json();
+                const now = new Date();
+                // Clients
+                const total = parseInt(data['$SYS/broker/clients/total']) || 0;
+                const connected = parseInt(data['$SYS/broker/clients/connected']) || 0;
+                const active = parseInt(data['$SYS/broker/clients/active']) || 0;
+                clientsTotalSeries.push({ x: now, y: total });
+                clientsConnectedSeries.push({ x: now, y: connected });
+                clientsActiveSeries.push({ x: now, y: active });
+                if (clientsTotalSeries.length > maxPoints) clientsTotalSeries.shift();
+                if (clientsConnectedSeries.length > maxPoints) clientsConnectedSeries.shift();
+                if (clientsActiveSeries.length > maxPoints) clientsActiveSeries.shift();
+                clientsYMax = Math.max(total, connected, active) + 1;
+                [clientsTotalChart, clientsConnectedChart, clientsActiveChart].forEach(chart => {
+                    chart.options.scales.y.suggestedMax = clientsYMax;
+                    chart.data.datasets[0].data = chart === clientsTotalChart ? clientsTotalSeries : chart === clientsConnectedChart ? clientsConnectedSeries : clientsActiveSeries;
+                    chart.update();
+                });
+                // Messages: use $SYS/broker/load/messages/{type}/1min topics
+                const sent = parseInt(data['$SYS/broker/load/messages/sent/1min']) || 0;
+                const received = parseInt(data['$SYS/broker/load/messages/received/1min']) || 0;
+                // For dropped, use $SYS/broker/load/publish/dropped/1min
+                const dropped = parseInt(data['$SYS/broker/load/publish/dropped/1min']) || 0;
+                messagesSentSeries.push({ x: now, y: sent });
+                messagesReceivedSeries.push({ x: now, y: received });
+                messagesDroppedSeries.push({ x: now, y: dropped });
+                if (messagesSentSeries.length > maxPoints) messagesSentSeries.shift();
+                if (messagesReceivedSeries.length > maxPoints) messagesReceivedSeries.shift();
+                if (messagesDroppedSeries.length > maxPoints) messagesDroppedSeries.shift();
+                messagesYMax = Math.max(sent, received, dropped, 1);
+                [messagesSentChart, messagesReceivedChart, messagesDroppedChart].forEach(chart => {
+                    chart.options.scales.y.suggestedMax = messagesYMax;
+                    chart.data.datasets[0].data = chart === messagesSentChart ? messagesSentSeries : chart === messagesReceivedChart ? messagesReceivedSeries : messagesDroppedSeries;
+                    chart.update();
+                });
+                // Bytes: use $SYS/broker/load/bytes/{type}/1min topics
+                const bytesSent = parseInt(data['$SYS/broker/load/bytes/sent/1min']) || 0;
+                const bytesReceived = parseInt(data['$SYS/broker/load/bytes/received/1min']) || 0;
+                bytesSentSeries.push({ x: now, y: bytesSent });
+                bytesReceivedSeries.push({ x: now, y: bytesReceived });
+                if (bytesSentSeries.length > maxPoints) bytesSentSeries.shift();
+                if (bytesReceivedSeries.length > maxPoints) bytesReceivedSeries.shift();
+                bytesYMax = Math.max(bytesSent, bytesReceived, 1);
+                [bytesSentChart, bytesReceivedChart].forEach(chart => {
+                    chart.options.scales.y.suggestedMax = bytesYMax;
+                    chart.data.datasets[0].data = chart === bytesSentChart ? bytesSentSeries : bytesReceivedSeries;
+                    chart.update();
+                });
+                // Update x axis min/max for selected time range on every chart update
+                const xMin = now.getTime() - timeRangeMinutes * 60 * 1000;
+                const xMax = now.getTime();
+                [clientsTotalChart, clientsConnectedChart, clientsActiveChart,
+                 messagesSentChart, messagesReceivedChart, messagesDroppedChart,
+                 bytesSentChart, bytesReceivedChart].forEach(chart => {
+                    chart.options.scales.x.min = xMin;
+                    chart.options.scales.x.max = xMax;
+                    chart.update();
+                });
+            }
+            setInterval(updateCharts, 10000);
+            updateCharts();
+        };
+    </script>
+</body>
+</html>
