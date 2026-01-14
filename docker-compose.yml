@@ -1,14 +1,23 @@
 services:
   mosquitto:
+    container_name: mosquitto
     image: eclipse-mosquitto:2
     ports:
       - "1883:1883"
-      - "9001:9001"
+    command:
+      - /usr/sbin/mosquitto
+      - -c
+      - /mosquitto/config/mosquitto.conf
+    entrypoint: /docker-entrypoint.sh
     volumes:
-      - mosquitto_data:/mosquitto/data
-      - mosquitto_config:/mosquitto/config
-  api:
-    build: .
+      - /home/user/mosquitto/config:/mosquitto/config
+      - /home/user/mosquitto/data:/mosquitto/data
+      - /home/user/mosquitto/log:/mosquitto/log
+    network_mode: bridge
+    restart: unless-stopped
+  mosquittoapi:
+    container_name: mosquittoapi
+    image: ghcr.io/pablogrb/mosquittoapi:latest
     depends_on:
       - mosquitto
     environment:
@@ -16,7 +25,5 @@ services:
       - MQTT_BROKER_PORT=1883
     ports:
       - "8000:8000"
+    network_mode: bridge
     restart: unless-stopped
-volumes:
-  mosquitto_data:
-  mosquitto_config:
